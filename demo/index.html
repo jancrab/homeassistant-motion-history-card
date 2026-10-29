@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Motion History Card · Simulated preview</title>
+<style>
+*{box-sizing:border-box}body{margin:0;padding:60px 24px;background:#101319;color:#e4e9ef;font:14px system-ui;--primary-text-color:#e4e9ef;--secondary-text-color:#a1abba;--card-background-color:#1b2028;--divider-color:#38414d;--primary-color:#6dc9df;--ha-card-border-color:#2b333f}body.light{background:#edf1f4;color:#202c3b;--primary-text-color:#202c3b;--secondary-text-color:#5d6a7b;--card-background-color:#fff;--ha-card-border-color:#dbe1e8}main{max-width:980px;margin:auto}.eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:2px;color:#6dc9df}h1{font-size:34px;letter-spacing:-1px;font-weight:550;margin:12px 0}p{color:var(--secondary-text-color);line-height:1.6}.layout{display:grid;grid-template-columns:minmax(0,1fr) 240px;gap:56px;align-items:start;margin-top:48px}.stage{min-width:0;display:flex;justify-content:center;padding-top:12px}#card{display:block;width:480px;max-width:100%}aside{display:grid;gap:16px}label{display:grid;gap:7px;color:var(--secondary-text-color);font-size:12px}select,button{min-height:44px;border-radius:9px;background:var(--card-background-color);color:inherit;border:1px solid var(--divider-color);padding:8px 12px;font:inherit}button{cursor:pointer}.note{font-size:11px;margin-top:24px}#event{min-height:40px;color:#6dc9df}@media(max-width:760px){.layout{grid-template-columns:1fr;gap:36px}aside{grid-template-columns:1fr 1fr}body{padding:32px 20px}}
+</style>
+<main><div class="eyebrow">Home Assistant · Motion History</div><h1>A quiet view of a busy home.</h1><p>Three rooms. One shared timeline. Touch a room to see more.</p><div class="layout"><section><div class="stage"><homeassistant-motion-history-card id="card"></homeassistant-motion-history-card></div><p class="note">Simulated states and recorded history. No Home Assistant connection.</p><p id="event" role="status"></p></section><aside>
+<label>Card width<select id="width"><option>480</option><option>360</option><option>280</option></select></label><label>Theme<select id="theme"><option value="dark">Dark</option><option value="light">Light</option></select></label><label>Language<select id="language"><option value="de">Deutsch</option><option value="en">English</option></select></label><label>History data<select id="data"><option value="normal">Recorded activity</option><option value="empty">No history</option><option value="error">Connection error</option></select></label><label>Current hallway state<select id="state"><option value="on">Motion detected</option><option value="off">Clear</option><option value="unavailable">Unavailable</option></select></label><button id="refresh">Refresh history</button>
+</aside></div></main>
+<script type="module">
+customElements.define('ha-card',class extends HTMLElement{});
+const icons={'mdi:door':'<path d="M4 21h16M7 21V3h10v18M13 12h.01"/>','mdi:silverware-fork-knife':'<path d="M5 3v6c0 3 6 3 6 0V3M8 3v18M19 3c-4 4-4 10 0 10v8M19 3v10"/>','mdi:shower':'<path d="M4 4h4l4 4M8 12l8-8M7 15v1m4-5v1m4-5v1M10 18v1m4-5v1m4-5v1M14 21v1m4-5v1m3-4v1"/>'};
+customElements.define('ha-icon',class extends HTMLElement{set icon(value){this.innerHTML=`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${icons[value]||icons['mdi:door']}</svg>`;}});
+await import('../dist/homeassistant-motion-history-card.js');
+const ids=['binary_sensor.demo_hall','binary_sensor.demo_kitchen','binary_sensor.demo_bathroom'];
+const card=document.querySelector('#card');
+const config={entities:ids.map((entity,i)=>({entity,name:['Flur','Küche','Bad'][i],icon:Object.keys(icons)[i],color:['cyan','yellow','pink'][i]})),hours_to_show:1,refresh_interval:30};
+const hass={locale:{language:'de',time_format:'24'},config:{time_zone:'Europe/Berlin'},states:Object.fromEntries(ids.map((id,i)=>[id,{state:i===0?'on':'off',last_changed:new Date(Date.now()-[120000,480000,960000][i]).toISOString(),attributes:{device_class:'motion'}}])),callApi:async(method,path)=>{
+  if(document.querySelector('#data').value==='error')throw Error('Simulated offline');if(document.querySelector('#data').value==='empty')return[];
+  const url=new URL('https://demo.invalid/'+path);const end=Date.parse(url.searchParams.get('end_time')),start=end-3600000;
+  const changes=[[[-3,'off'],[6,'on'],[9,'off'],[20,'on'],[21,'off'],[35,'on'],[40,'off'],[58,'on']],[[-3,'off'],[15,'on'],[19,'off'],[23,'on'],[28,'off'],[40,'on'],[52,'off']],[[-3,'off'],[2,'on'],[6,'off'],[34,'on'],[44,'off']]];
+  return changes.map((points,i)=>points.map(([min,state],j)=>({...(!j?{entity_id:ids[i]}:{}),state,last_changed:new Date(start+min*60000).toISOString()})));
+}};
+card.setConfig(config);card.hass=hass;
+card.addEventListener('hass-more-info',event=>document.querySelector('#event').textContent=`Simulated more-info: ${event.detail.entityId}`);
+document.querySelector('#width').onchange=event=>card.style.width=event.target.value+'px';
+document.querySelector('#theme').onchange=event=>document.body.classList.toggle('light',event.target.value==='light');
+document.querySelector('#language').onchange=event=>{hass.locale.language=event.target.value;card.hass=hass;};
+document.querySelector('#state').onchange=event=>{hass.states[ids[0]]={...hass.states[ids[0]],state:event.target.value,last_changed:new Date().toISOString()};card.hass=hass;};
+document.querySelector('#data').onchange=()=>{card.setConfig(config);card.hass=hass;};
+document.querySelector('#refresh').onclick=()=>card._fetchHistory();
+</script>
+</html>
